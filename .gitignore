@@ -1,0 +1,22 @@
+# local notes (progress tracker, AI log) — never published
+.notes/
+
+# dependencies / builds
+node_modules/
+dist/
+coverage/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfvars
+infra/.terraform.lock.hcl
+
+# os / editors
+.DS_Store
