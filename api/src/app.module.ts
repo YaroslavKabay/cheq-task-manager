@@ -1,10 +1,15 @@
-import { Module } from '@nestjs/common';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
+import { Module, ValidationPipe } from '@nestjs/common';
+import { APP_PIPE } from '@nestjs/core';
+import { HealthModule } from './health/health.module.js';
+import { TasksModule } from './tasks/tasks.module.js';
 
 @Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [HealthModule, TasksModule],
+  providers: [
+    {
+      provide: APP_PIPE,
+      useValue: new ValidationPipe({ whitelist: true, transform: true }),
+    },
+  ],
 })
 export class AppModule {}

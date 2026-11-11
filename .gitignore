@@ -20,3 +20,6 @@ infra/.terraform.lock.hcl
 
 # os / editors
 .DS_Store
+
+# typescript incremental build info
+*.tsbuildinfo
