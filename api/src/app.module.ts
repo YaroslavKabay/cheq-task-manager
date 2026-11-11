@@ -1,5 +1,11 @@
-import { Module, ValidationPipe } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  ValidationPipe,
+} from '@nestjs/common';
 import { APP_PIPE } from '@nestjs/core';
+import { RequestLoggerMiddleware } from './common/request-logger.middleware.js';
 import { HealthModule } from './health/health.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
 
@@ -12,4 +18,8 @@ import { TasksModule } from './tasks/tasks.module.js';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*path');
+  }
+}

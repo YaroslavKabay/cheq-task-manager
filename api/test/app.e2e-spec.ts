@@ -1,4 +1,5 @@
-import { INestApplication } from '@nestjs/common';
+import { jest } from '@jest/globals';
+import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
@@ -6,8 +7,12 @@ import { AppModule } from '../src/app.module.js';
 
 describe('Task Manager API (e2e)', () => {
   let app: INestApplication<App>;
+  const log = jest
+    .spyOn(Logger.prototype, 'log')
+    .mockImplementation(() => undefined);
 
   beforeEach(async () => {
+    log.mockClear();
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -28,6 +33,19 @@ describe('Task Manager API (e2e)', () => {
       status: 'ok',
       uptime: expect.any(Number),
     });
+  });
+
+  it('logs every request with method, path, status and duration', async () => {
+    await request(app.getHttpServer()).get('/health').expect(200);
+    await request(app.getHttpServer()).post('/tasks').send({}).expect(400);
+
+    const lines = log.mock.calls.map(([message]) => String(message));
+    expect(lines).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^GET \/health 200 \d+\.\dms$/),
+        expect.stringMatching(/^POST \/tasks 400 \d+\.\dms$/),
+      ]),
+    );
   });
 
   it('GET /tasks returns an empty array when there are no tasks', async () => {
