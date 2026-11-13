@@ -66,6 +66,7 @@ jobs:
         with:
           context: .
           push: true
+          build-args: APP_VERSION=${{ github.sha }}
           tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

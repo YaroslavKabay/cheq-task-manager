@@ -32,6 +32,7 @@ describe('Task Manager API (e2e)', () => {
     expect(response.body).toEqual({
       status: 'ok',
       uptime: expect.any(Number),
+      version: expect.any(String),
     });
   });
 

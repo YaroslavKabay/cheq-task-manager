@@ -18,10 +18,12 @@ COPY api/ ./
 RUN npm run build && npm prune --omit=dev
 
 FROM ${NODE_IMAGE} AS runtime
+ARG APP_VERSION=dev
 ENV NODE_ENV=production \
     PORT=3000 \
     WEB_DIR=/app/public \
-    NO_COLOR=1
+    NO_COLOR=1 \
+    APP_VERSION=${APP_VERSION}
 WORKDIR /app
 COPY --from=api-build --chown=node:node /api/package.json ./
 COPY --from=api-build --chown=node:node /api/node_modules ./node_modules

@@ -7,6 +7,7 @@ export interface Task {
 export interface Health {
   status: string;
   uptime: number;
+  version: string;
 }
 
 const API_URL =

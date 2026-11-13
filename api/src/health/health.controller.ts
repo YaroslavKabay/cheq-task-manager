@@ -3,12 +3,17 @@ import { Controller, Get } from '@nestjs/common';
 export interface HealthStatus {
   status: 'ok';
   uptime: number;
+  version: string;
 }
 
 @Controller('health')
 export class HealthController {
   @Get()
   check(): HealthStatus {
-    return { status: 'ok', uptime: Math.floor(process.uptime()) };
+    return {
+      status: 'ok',
+      uptime: Math.floor(process.uptime()),
+      version: process.env.APP_VERSION ?? 'dev',
+    };
   }
 }
