@@ -6,28 +6,33 @@ import { getHealth } from "@/lib/api";
 export type HealthStatus = "checking" | "up" | "down";
 
 const POLL_INTERVAL_MS = 5000;
+const CHECK_TIMEOUT_MS = 3000;
 
 export function useHealth(): HealthStatus {
   const [status, setStatus] = useState<HealthStatus>("checking");
 
   useEffect(() => {
     let active = true;
+    let timer: ReturnType<typeof setTimeout>;
 
     const check = async () => {
+      let next: HealthStatus = "down";
       try {
-        const health = await getHealth();
-        if (active) setStatus(health.status === "ok" ? "up" : "down");
+        const health = await getHealth(AbortSignal.timeout(CHECK_TIMEOUT_MS));
+        if (health.status === "ok") next = "up";
       } catch {
-        if (active) setStatus("down");
+        next = "down";
       }
+      if (!active) return;
+      setStatus(next);
+      timer = setTimeout(check, POLL_INTERVAL_MS);
     };
 
     void check();
-    const timer = setInterval(check, POLL_INTERVAL_MS);
 
     return () => {
       active = false;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, []);
 

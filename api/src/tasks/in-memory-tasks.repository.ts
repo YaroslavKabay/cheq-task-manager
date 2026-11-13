@@ -7,11 +7,11 @@ export class InMemoryTasksRepository extends TasksRepository {
   private readonly tasks: Task[] = [];
 
   async findAll(): Promise<Task[]> {
-    return [...this.tasks];
+    return this.tasks.map((task) => ({ ...task }));
   }
 
   async create(task: Task): Promise<Task> {
-    this.tasks.push(task);
-    return task;
+    this.tasks.push({ ...task });
+    return { ...task };
   }
 }

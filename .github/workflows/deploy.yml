@@ -19,6 +19,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -42,12 +43,14 @@ jobs:
         run: |
           npm ci
           npm run lint
+          npm run typecheck
           npm run build
 
   build:
     name: Build image
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -66,6 +69,7 @@ jobs:
         with:
           context: .
           push: true
+          provenance: false
           build-args: APP_VERSION=${{ github.sha }}
           tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
           cache-from: type=gha
@@ -75,8 +79,10 @@ jobs:
     name: Deploy to EC2
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
     steps:
       - uses: actions/checkout@v7
 
@@ -84,13 +90,13 @@ jobs:
         run: |
           install -m 700 -d ~/.ssh
           install -m 600 /dev/null ~/.ssh/deploy_key
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
       - name: Replace the running container
         run: |
-          ssh -i ~/.ssh/deploy_key "ec2-user@$EC2_HOST" \
-            "bash -s -- '${{ env.ECR_REPOSITORY }}' '${{ github.sha }}' '${{ env.AWS_REGION }}'" < scripts/deploy.sh
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=10 "ec2-user@$EC2_HOST" \
+            "bash -s -- '$ECR_REPOSITORY' '$GITHUB_SHA' '$AWS_REGION'" < scripts/deploy.sh
 
       - name: Smoke test the live URL
         run: curl --fail --silent --show-error --retry 5 --retry-delay 3 --retry-all-errors "http://$EC2_HOST/health"

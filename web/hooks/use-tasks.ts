@@ -41,14 +41,13 @@ export function useTasks() {
     setReloadKey((key) => key + 1);
   }, []);
 
-  const addTask = useCallback(async (title: string) => {
-    const task = await createTask(title);
-    setState((previous) => ({
-      status: "ready",
-      tasks: [...previous.tasks, task],
-      error: null,
-    }));
-  }, []);
+  const addTask = useCallback(
+    async (title: string) => {
+      await createTask(title);
+      reload();
+    },
+    [reload],
+  );
 
   return { ...state, reload, addTask };
 }

@@ -5,6 +5,11 @@ const dateFormat = new Intl.DateTimeFormat("en", {
   timeStyle: "short",
 });
 
+function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : dateFormat.format(date);
+}
+
 interface TaskListProps {
   tasks: Task[];
   loading: boolean;
@@ -48,7 +53,7 @@ export function TaskList({ tasks, loading }: TaskListProps) {
             dateTime={task.createdAt}
             className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400"
           >
-            {dateFormat.format(new Date(task.createdAt))}
+            {formatDate(task.createdAt)}
           </time>
         </li>
       ))}

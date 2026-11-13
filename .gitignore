@@ -25,3 +25,8 @@ infra/*.tfvars
 
 # local tooling
 .claude/
+
+# keys and terraform leftovers
+*.pem
+*.tfplan
+crash.log

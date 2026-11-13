@@ -1,11 +1,5 @@
-import {
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-  ValidationPipe,
-} from '@nestjs/common';
+import { Module, ValidationPipe } from '@nestjs/common';
 import { APP_PIPE } from '@nestjs/core';
-import { RequestLoggerMiddleware } from './common/request-logger.middleware.js';
 import { HealthModule } from './health/health.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
 
@@ -14,12 +8,12 @@ import { TasksModule } from './tasks/tasks.module.js';
   providers: [
     {
       provide: APP_PIPE,
-      useValue: new ValidationPipe({ whitelist: true, transform: true }),
+      useValue: new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        stopAtFirstError: true,
+      }),
     },
   ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestLoggerMiddleware).forRoutes('*path');
-  }
-}
+export class AppModule {}

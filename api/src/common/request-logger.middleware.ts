@@ -7,11 +7,13 @@ export class RequestLoggerMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction): void {
     const startedAt = process.hrtime.bigint();
+    const path = req.originalUrl.split('?')[0];
 
-    res.on('finish', () => {
+    res.on('close', () => {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+      const status = res.writableFinished ? res.statusCode : 'aborted';
       this.logger.log(
-        `${req.method} ${req.originalUrl} ${res.statusCode} ${durationMs.toFixed(1)}ms`,
+        `${req.method} ${path} ${status} ${durationMs.toFixed(1)}ms`,
       );
     });
 

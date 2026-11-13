@@ -14,16 +14,6 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   (process.env.NODE_ENV === "development" ? "http://localhost:3000" : "");
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status?: number,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
@@ -32,11 +22,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: init?.body ? { "Content-Type": "application/json" } : undefined,
     });
   } catch {
-    throw new ApiError("Cannot reach the API. Check that it is running.");
+    throw new Error("Cannot reach the API. Check that it is running.");
   }
 
   if (!response.ok) {
-    throw new ApiError(await readErrorMessage(response), response.status);
+    throw new Error(await readErrorMessage(response));
   }
   return (await response.json()) as T;
 }

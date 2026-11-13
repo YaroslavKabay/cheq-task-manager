@@ -9,8 +9,11 @@ describe('RequestLoggerMiddleware', () => {
     .spyOn(Logger.prototype, 'log')
     .mockImplementation(() => undefined);
 
-  const createResponse = (statusCode: number) =>
-    Object.assign(new EventEmitter(), { statusCode }) as unknown as Response;
+  const createResponse = (statusCode: number, writableFinished = true) =>
+    Object.assign(new EventEmitter(), {
+      statusCode,
+      writableFinished,
+    }) as unknown as Response;
 
   beforeEach(() => log.mockClear());
   afterAll(() => log.mockRestore());
@@ -25,24 +28,37 @@ describe('RequestLoggerMiddleware', () => {
     expect(log).not.toHaveBeenCalled();
   });
 
-  it('logs method, path, status code and response time on finish', () => {
+  it('logs method, path, status code and response time once the response closes', () => {
     const req = { method: 'POST', originalUrl: '/tasks' } as Request;
     const res = createResponse(201);
 
     new RequestLoggerMiddleware().use(req, res, jest.fn());
-    res.emit('finish');
+    res.emit('close');
 
     expect(log).toHaveBeenCalledTimes(1);
     expect(log.mock.calls[0][0]).toMatch(/^POST \/tasks 201 \d+\.\dms$/);
   });
 
-  it('logs the status of failed requests', () => {
-    const req = { method: 'POST', originalUrl: '/tasks' } as Request;
-    const res = createResponse(400);
+  it('logs the path without the query string', () => {
+    const req = {
+      method: 'GET',
+      originalUrl: '/tasks?token=secret',
+    } as Request;
+    const res = createResponse(200);
 
     new RequestLoggerMiddleware().use(req, res, jest.fn());
-    res.emit('finish');
+    res.emit('close');
 
-    expect(log.mock.calls[0][0]).toContain('POST /tasks 400');
+    expect(log.mock.calls[0][0]).toMatch(/^GET \/tasks 200 /);
+  });
+
+  it('marks requests the client dropped before a response was sent', () => {
+    const req = { method: 'GET', originalUrl: '/tasks' } as Request;
+    const res = createResponse(200, false);
+
+    new RequestLoggerMiddleware().use(req, res, jest.fn());
+    res.emit('close');
+
+    expect(log.mock.calls[0][0]).toMatch(/^GET \/tasks aborted \d+\.\dms$/);
   });
 });

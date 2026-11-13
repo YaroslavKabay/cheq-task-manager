@@ -37,7 +37,9 @@ describe('TasksService', () => {
     const created = await service.create({ title: 'Ship it' });
 
     expect(created.title).toBe('Ship it');
-    expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(created.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
     expect(new Date(created.createdAt).toISOString()).toBe(created.createdAt);
     expect(repository.create).toHaveBeenCalledWith(created);
   });

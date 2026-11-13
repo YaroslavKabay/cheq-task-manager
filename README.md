@@ -25,7 +25,7 @@ A small task management service taken all the way to production: a NestJS REST A
 | `web/` | Next.js frontend (App Router, static export, Tailwind) |
 | `Dockerfile`, `compose.yaml` | Multi-stage production image and a local runner |
 | `infra/` | Terraform for every AWS resource |
-| `scripts/deploy.sh` | Runs on the instance: pull the image, replace the container, wait for health |
+| `scripts/deploy.sh` | Runs on the instance: pull the image, replace the container, wait for health, roll back on failure |
 | `.github/workflows/deploy.yml` | The CI/CD pipeline |
 
 ## API
@@ -38,7 +38,7 @@ A small task management service taken all the way to production: a NestJS REST A
 
 A task is `{ "id": "<uuid>", "title": "...", "createdAt": "<ISO 8601>" }`.
 
-Every request produces one log line from a custom middleware: `GET /tasks 200 0.6ms`.
+Every request produces one log line from a custom middleware: `GET /tasks 200 0.6ms`. It is registered ahead of the body parser and the static file handler, so it also covers malformed bodies, unknown routes and frontend assets. The query string is left out of the log, and a request the client dropped is logged as `aborted`.
 
 ## Run locally
 
@@ -80,7 +80,7 @@ Everything in AWS is created by Terraform from `infra/`:
 - a security group that allows inbound `80` (app) and `22` (deployments)
 - an ECR repository that keeps the five most recent images
 - an IAM role that lets the instance pull from that repository without stored credentials
-- an IAM user for the pipeline that can only push to that repository
+- an IAM user for the pipeline whose only permissions are pushing and pulling images in that repository
 
 ```bash
 cd infra
@@ -88,7 +88,14 @@ terraform init
 terraform apply
 ```
 
-Prerequisites: AWS credentials for an administrator in the shell, and a deploy key pair at `~/.ssh/cheq-deploy` (`ssh-keygen -t ed25519 -f ~/.ssh/cheq-deploy`). The outputs give the public IP, the ECR URL and the pipeline user's access key.
+`terraform apply` creates the environment but not the first release: the instance comes up with Docker and no container, and the pipeline puts the application on it. Bringing everything up on a clean account takes these steps:
+
+1. Create a deploy key pair: `ssh-keygen -t ed25519 -f ~/.ssh/cheq-deploy`.
+2. With administrator AWS credentials in the shell, run `terraform apply`.
+3. Add four repository secrets in GitHub (listed under Deployment). The values come from `terraform output public_ip`, `terraform output ci_access_key_id`, `terraform output -raw ci_secret_access_key` and the private key file.
+4. Push to `main`, or re-run the latest workflow run.
+
+Replacing the instance (for example after editing `user-data.sh`) keeps the Elastic IP but starts from an empty host, so step 4 has to be repeated.
 
 **Why EC2 and not Fargate or App Runner.** It is the brief's default, it is the cheapest option that stays up until the interview, and one container on one instance is the smallest thing that satisfies every requirement. The frontend is a static export served by the same NestJS process, so there is a single URL and no CORS in production. The scalability section below describes what I would change first.
 
@@ -98,7 +105,7 @@ The pipeline runs on every push to `main`:
 
 1. **Test** – lint, Jest with coverage for the API, lint and build for the frontend. A failure stops the pipeline.
 2. **Build image** – builds the Docker image and pushes it to ECR tagged with the commit SHA.
-3. **Deploy to EC2** – connects over SSH, runs `scripts/deploy.sh` to pull that image and replace the container, waits for the container to answer `/health`, then checks `/health` on the public URL.
+3. **Deploy to EC2** – connects over SSH, runs `scripts/deploy.sh` to pull that image, stop the old container gracefully and start the new one, and waits for it to answer `/health`. If it does not, the script starts the previous image again and the job fails. The last step checks `/health` on the public URL.
 
 Repository secrets: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (the push-only pipeline user from the Terraform outputs), `EC2_SSH_KEY` (the private deploy key) and `EC2_HOST` (the Elastic IP).
 
@@ -110,16 +117,18 @@ Both required behaviours are visible in the Actions history:
 ## Assumptions and trade-offs
 
 - **In-memory store.** Tasks live in process memory behind an abstract `TasksRepository` with async methods. Data is lost on every deploy or restart. Swapping in PostgreSQL means adding one class and changing one line in `TasksModule`.
-- **Validation.** Titles are trimmed, so a whitespace-only title is rejected. I added a 200 character limit. Unknown body fields are stripped.
+- **Validation.** Titles are trimmed, so a whitespace-only title is rejected. I added a 200 character limit. Unknown body fields are stripped. Validation runs in a NestJS pipe on a DTO, which is the framework's idiomatic place for it, and returns one message per request.
 - **`version` in `/health`.** Added on top of the suggested shape so the running build can be identified from the outside.
 - **Jest on an ESM project.** NestJS 12 is ESM-only and its CLI scaffolds Vitest. The brief asks for Jest, so tests run on Jest with `--experimental-vm-modules`, which is Jest's supported way to run native ES modules.
 - **HTTP only.** There is no domain, so there is no TLS certificate. With a domain I would terminate TLS at a load balancer or CloudFront.
 - **SSH open to the internet.** GitHub-hosted runners have no fixed IP range. Access is key-only. I would replace SSH with SSM Run Command and close port 22.
-- **Long-lived pipeline credentials.** The brief asks for AWS credentials in CI secrets, so the pipeline uses an access key scoped to pushing one repository. I would move to GitHub OIDC with a short-lived role.
-- **Local Terraform state.** Fine for one person. A team needs an S3 backend with locking.
-- **One manual step.** The AWS account and the first administrator access key were created by hand, because Terraform needs credentials to start. Everything else is in code.
+- **Long-lived pipeline credentials.** The brief asks for AWS credentials in CI secrets, so the pipeline uses an access key scoped to one ECR repository. I would move to GitHub OIDC with a short-lived role.
+- **Local Terraform state.** Fine for one person. It is gitignored because it contains the pipeline user's secret key. A team needs an encrypted S3 backend with locking.
+- **Manual steps.** No AWS resource is created by hand. What remains manual is the bootstrap around Terraform: the AWS account and its first administrator access key, generating the deploy key pair, and copying four values into GitHub secrets. The secrets step could be automated with Terraform's GitHub provider.
 - **Region.** `eu-north-1`, because the AWS Free plan account is restricted to its home region.
-- **Deploys cause a few seconds of downtime** while the container is replaced. Acceptable here, addressed in the scalability section.
+- **Deploys cause a few seconds of downtime** while the container is replaced. A release that fails its health check is rolled back to the previous image. Rolling deploys are addressed in the scalability section.
+- **The "API down" state** is easiest to see locally, with the frontend on `:3001` and the API stopped. In production both are served by one process, so an open tab shows the red badge and the error banner, but a fresh page load cannot succeed while the API is down.
+- **SSH host key.** The pipeline trusts the host key it reads at deploy time. Pinning the key as a repository variable, or moving to SSM, closes that gap.
 
 ### Not done
 
@@ -155,4 +164,4 @@ I used Claude Code throughout: scaffolding the NestJS and Next.js projects, writ
 
 One instance where the output had to be corrected: the infrastructure was planned for `eu-central-1`, a reasonable default that turned out to be wrong for this account. An AWS Free plan account is locked to its home region by an organization-level policy, and every call to another region returns an explicit deny. This surfaced on a dry run before anything was created, and the region was changed to `eu-north-1` in the Terraform variables and the pipeline. The lesson I took from it is to run `terraform plan` against the real account before trusting generated infrastructure code, because the code was valid and still could not have been applied.
 
-A second, smaller one: the generated Jest configuration counted the test files themselves towards coverage, which made the 80% threshold fail on a project whose source was fully covered. Excluding spec files, the entry point and module wiring from `collectCoverageFrom` fixed the measurement.
+A second one came from reviewing the finished project instead of trusting it. The first version of the logging middleware was attached through the NestJS module API, which runs after the body parser and after the static file handler. Tests were green and coverage was 100%, yet malformed JSON, the root path and every frontend asset produced no log line, which contradicts "log every incoming request". I moved the middleware to the front of the Express chain, switched it from the `finish` event to `close` so dropped connections are logged too, and added end-to-end tests for exactly those cases. The same review found a race in the task list hook, where a slow `GET /tasks` could overwrite a task that had just been added; the hook now refetches after a successful create.

@@ -27,7 +27,7 @@ export function TaskManager() {
             Task Manager
           </h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {status === "ready"
+            {status === "ready" || tasks.length > 0
               ? `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`
               : "Tasks"}
           </p>
@@ -37,8 +37,12 @@ export function TaskManager() {
 
       <TaskForm onSubmit={addTask} />
 
-      {status === "error" && error && (
+      {status === "error" && error ? (
         <ErrorAlert message={error} onRetry={reload} />
+      ) : (
+        health === "down" && (
+          <ErrorAlert message="The API is not responding. The list below may be out of date." />
+        )
       )}
 
       {(status !== "error" || tasks.length > 0) && (

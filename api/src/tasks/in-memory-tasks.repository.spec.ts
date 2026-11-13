@@ -22,12 +22,17 @@ describe('InMemoryTasksRepository', () => {
     await expect(repository.findAll()).resolves.toEqual([task, second]);
   });
 
-  it('does not expose its internal array', async () => {
+  it('does not expose its internal state', async () => {
     const repository = new InMemoryTasksRepository();
-    await repository.create(task);
+    const input = { ...task };
+    const created = await repository.create(input);
 
-    (await repository.findAll()).pop();
+    input.title = 'changed input';
+    created.title = 'changed result';
+    const listed = await repository.findAll();
+    listed[0].title = 'changed listing';
+    listed.pop();
 
-    await expect(repository.findAll()).resolves.toHaveLength(1);
+    await expect(repository.findAll()).resolves.toEqual([task]);
   });
 });

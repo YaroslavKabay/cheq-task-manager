@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { ErrorAlert } from "@/components/error-alert";
 
 const MAX_TITLE_LENGTH = 200;
 
@@ -17,31 +18,36 @@ function validate(title: string): string | null {
 }
 
 export function TaskForm({ onSubmit }: TaskFormProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting) return;
 
     const trimmed = title.trim();
-    const validationError = validate(trimmed);
-    if (validationError) {
-      setError(validationError);
+    const invalid = validate(trimmed);
+    setValidationError(invalid);
+    setSubmitError(null);
+    if (invalid) {
+      inputRef.current?.focus();
       return;
     }
 
     setSubmitting(true);
-    setError(null);
     try {
       await onSubmit(trimmed);
       setTitle("");
     } catch (cause) {
-      setError(
+      setSubmitError(
         cause instanceof Error ? cause.message : "Could not add the task",
       );
     } finally {
       setSubmitting(false);
+      inputRef.current?.focus();
     }
   };
 
@@ -52,17 +58,18 @@ export function TaskForm({ onSubmit }: TaskFormProps) {
       </label>
       <div className="flex flex-col gap-2 sm:flex-row">
         <input
+          ref={inputRef}
           id="task-title"
           type="text"
           value={title}
           onChange={(event) => {
             setTitle(event.target.value);
-            if (error) setError(null);
+            if (validationError) setValidationError(null);
           }}
           placeholder="What needs to be done?"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "task-title-error" : undefined}
-          disabled={submitting}
+          aria-invalid={validationError ? true : undefined}
+          aria-describedby={validationError ? "task-title-error" : undefined}
+          readOnly={submitting}
           className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 aria-invalid:border-red-500 dark:border-zinc-700 dark:bg-zinc-900"
         />
         <button
@@ -73,14 +80,17 @@ export function TaskForm({ onSubmit }: TaskFormProps) {
           {submitting ? "Adding…" : "Add task"}
         </button>
       </div>
-      {error && (
+      {validationError && (
         <p
           id="task-title-error"
           role="alert"
           className="text-sm text-red-600 dark:text-red-400"
         >
-          {error}
+          {validationError}
         </p>
+      )}
+      {submitError && (
+        <ErrorAlert message={`Could not add the task. ${submitError}`} />
       )}
     </form>
   );
