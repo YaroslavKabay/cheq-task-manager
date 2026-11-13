@@ -23,3 +23,6 @@ infra/.terraform.lock.hcl
 
 # typescript incremental build info
 *.tsbuildinfo
+
+# local tooling
+.claude/
