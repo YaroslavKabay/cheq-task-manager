@@ -1,0 +1,15 @@
+.git
+.github
+.notes
+.claude
+infra
+**/node_modules
+**/dist
+**/coverage
+**/.next
+**/out
+**/*.tsbuildinfo
+**/.env*
+**/*.md
+Dockerfile
+compose.yaml

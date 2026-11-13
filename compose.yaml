@@ -1,0 +1,9 @@
+name: cheq-task-manager
+
+services:
+  app:
+    build: .
+    image: cheq-task-manager:local
+    ports:
+      - "8080:3000"
+    restart: unless-stopped
