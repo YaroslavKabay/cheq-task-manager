@@ -16,7 +16,6 @@ infra/.terraform/
 infra/*.tfstate
 infra/*.tfstate.*
 infra/*.tfvars
-infra/.terraform.lock.hcl
 
 # os / editors
 .DS_Store
